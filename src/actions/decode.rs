@@ -2,7 +2,7 @@ use crate::cli::error::DecodingError;
 use crate::cli::opts::Decode;
 use crate::lib::deter;
 use pdf::file::File as PDFFile;
-use pdf::object::XObject;
+use pdf::object::{Resolve, XObject};
 use std::env;
 use std::fs::{self, File};
 use std::io;
@@ -203,15 +203,18 @@ pub fn decode(dec: &Decode) -> Result<Vec<PathBuf>, DecodingError> {
                     Err(err) if dec.skip_bad_pdf_pages => warn!("{}", err),
                     Err(err) => return Err(err),
                     Ok(page) => match page
-                        .resources(&pdf)
+                        .resources()
                         .map_err(|err| DecodingError::FailedToGetPdfPageResources(i + 1, err))
                     {
                         Err(err) if dec.skip_bad_pdf_pages => warn!("{}", err),
                         Err(err) => return Err(err),
                         Ok(resources) => {
-                            images.extend(resources.xobjects.iter().filter_map(|(_, o)| match o {
-                                XObject::Image(im) => Some(im.clone()),
-                                _ => None,
+                            images.extend(resources.xobjects.iter().filter_map(|(_, &o)| {
+                                let xobj = pdf.get(o).ok()?;
+                                match *xobj {
+                                    XObject::Image(ref im) => Some(xobj),
+                                    _ => None,
+                                }
                             }));
                         }
                     },
@@ -225,6 +228,11 @@ pub fn decode(dec: &Decode) -> Result<Vec<PathBuf>, DecodingError> {
 
             // Extract all images from the PDF
             for (i, image) in images.iter().enumerate() {
+                let image = match **image {
+                    XObject::Image(ref im) => im,
+                    _ => continue,
+                };
+
                 let outpath = output.join(Path::new(&format!(
                     "{:0page_num_len$}.jpg",
                     i + 1,

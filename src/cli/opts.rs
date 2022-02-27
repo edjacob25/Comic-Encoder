@@ -1,4 +1,4 @@
-use clap::{crate_authors, crate_description, crate_version, Clap};
+use clap::{crate_authors, crate_description, crate_version, Parser as Clap};
 use std::path::PathBuf;
 
 #[derive(Clap, Debug)]
@@ -124,7 +124,8 @@ pub enum CompilationMethod {
 #[derive(Clap, Debug, Clone, Copy)]
 /// Compile multiple chapters in single volumes (e.g. compile 10 to compile 10 chapters per volume)
 pub struct CompileRanges {
-    #[clap(global = true, about = "Number of chapters per volume")]
+    /// Number of chapters per volume
+    #[clap(global = true)]
     pub chapters_per_volume: u16,
 
     /// Add the start and end chapter at the end of each volume's filename

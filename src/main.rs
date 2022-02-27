@@ -10,7 +10,7 @@ pub mod lib;
 mod actions;
 mod logger;
 
-use clap::Clap;
+use clap::Parser;
 use cli::opts::{Action, EncodingMethod, Opts};
 use log::LevelFilter;
 use std::time::Instant;
