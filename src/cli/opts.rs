@@ -90,6 +90,10 @@ pub struct EncodingOptions {
     /// Compress losslessly (a lot slower, save up about 5% of the final volumes' size)
     #[clap(global = true, long)]
     pub compress_losslessly: bool,
+
+    /// Compress webp
+    #[clap(global = true, long)]
+    pub compress_webp: bool,
 }
 
 #[derive(Clap, Debug, Clone)]

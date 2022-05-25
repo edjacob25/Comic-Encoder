@@ -2,6 +2,7 @@ use std::ffi::OsString;
 use std::io::Error as IOError;
 use std::path::PathBuf;
 use std::fmt;
+use image::ImageError;
 use zip::result::ZipError;
 use pdf::error::PdfError;
 
@@ -35,6 +36,7 @@ pub enum EncodingError {
     FailedToCreateImageFileInZip { volume: usize, chapter: usize, file_path: PathBuf, err: ZipError },
     FailedToReadImage { volume: usize, chapter: usize, chapter_path: PathBuf, image_path: PathBuf, err: IOError },
     FailedToWriteImageFileToZip { volume: usize, chapter: usize, chapter_path: PathBuf, image_path: PathBuf, err: IOError },
+    FailedToConvertImageFileToZip { volume: usize, chapter: usize, chapter_path: PathBuf, image_path: PathBuf, err: ImageError },
     FailedToCloseZipArchive(usize, ZipError),
     FailedToRenameCompleteArchive(usize, IOError)
 }
@@ -151,6 +153,15 @@ impl fmt::Display for EncodingError {
                 ),
 
             Self::FailedToWriteImageFileToZip { volume, chapter, chapter_path: _, image_path, err } =>
+                format!(
+                    "Failed to write image file '{}' from chapter {} in volume {}: {}",
+                    image_path.to_string_lossy(),
+                    chapter,
+                    volume,
+                    err
+                ),
+            
+            Self::FailedToConvertImageFileToZip { volume, chapter, chapter_path: _, image_path, err } =>
                 format!(
                     "Failed to write image file '{}' from chapter {} in volume {}: {}",
                     image_path.to_string_lossy(),

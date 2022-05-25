@@ -11,6 +11,8 @@ log = "0.4.8"
 fern = { version = "0.6.0", features = [ "colored" ] }
 zip = "0.5.6"
 pdf = "0.7"
+webp = "0.2.2"
+image = "0.24.0"
 
 [[bin]]
 name = "comic-enc"

@@ -1,10 +1,12 @@
 use crate::cli::error::EncodingError;
 use crate::cli::opts::*;
 use crate::lib::deter;
+use image::{DynamicImage, GenericImageView};
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
+use webp::Encoder;
 use zip::write::{FileOptions, ZipWriter};
 use zip::CompressionMethod;
 
@@ -160,9 +162,6 @@ pub fn build_volume(args: &BuildVolumeArgs) -> Result<PathBuf, EncodingError> {
         ),
     };
 
-    // Prepare a buffer to store the picture's files
-    let mut buffer = Vec::new();
-
     // Count the number of pictures in this volume
     let mut pics_counter = 0;
 
@@ -282,14 +281,19 @@ pub fn build_volume(args: &BuildVolumeArgs) -> Result<PathBuf, EncodingError> {
         // Iterate over each page
         for (page_nb, file) in chapter_pics.iter().enumerate() {
             // Determine the name of the file in the ZIP directory
+            let ext = if enc_opts.compress_webp {
+                "webp"
+            } else {
+                file.extension().unwrap().to_str().ok_or_else(|| {
+                    EncodingError::ItemHasInvalidUTF8Name(file.file_name().unwrap().to_os_string())
+                })?
+            };
             let name_in_zip = match method {
                 BuildMethod::Each(_, _) => format!(
                     "{}_Pic_{:0pic_num_len$}.{file_ext}",
                     volume_display_name,
                     page_nb,
-                    file_ext = file.extension().unwrap().to_str().ok_or_else(
-                        || EncodingError::ItemHasInvalidUTF8Name(file.file_name().unwrap().to_os_string())
-                    )?,
+                    file_ext = ext,
                     pic_num_len = pic_num_len
                 ),
 
@@ -298,9 +302,7 @@ pub fn build_volume(args: &BuildVolumeArgs) -> Result<PathBuf, EncodingError> {
                     volume,
                     chapter,
                     page_nb,
-                    file_ext = file.extension().unwrap().to_str().ok_or_else(
-                        || EncodingError::ItemHasInvalidUTF8Name(file.file_name().unwrap().to_os_string())
-                    )?,
+                    file_ext = ext,
                     vol_num_len = vol_num_len,
                     chapter_num_len = chapter_num_len,
                     pic_num_len = pic_num_len
@@ -333,6 +335,8 @@ pub fn build_volume(args: &BuildVolumeArgs) -> Result<PathBuf, EncodingError> {
                 image_path: file.to_path_buf(),
                 err,
             })?;
+            // Prepare a buffer to store the picture's files
+            let mut buffer = Vec::new();
 
             f.read_to_end(&mut buffer)
                 .map_err(|err| EncodingError::FailedToReadImage {
@@ -342,6 +346,28 @@ pub fn build_volume(args: &BuildVolumeArgs) -> Result<PathBuf, EncodingError> {
                     image_path: file.to_path_buf(),
                     err,
                 })?;
+
+            if enc_opts.compress_webp && !file.ends_with(".webp") {
+                trace!("Should convert {}", file.to_string_lossy());
+                let im = image::load_from_memory(&buffer).map_err(|err| {
+                    EncodingError::FailedToConvertImageFileToZip {
+                        volume,
+                        chapter: *chapter,
+                        chapter_path: chapter_path.to_path_buf(),
+                        image_path: file.to_path_buf(),
+                        err,
+                    }
+                })?;
+                let im = match im {
+                    DynamicImage::ImageLuma8(_) => DynamicImage::from(im.into_rgb8()),
+                    DynamicImage::ImageLumaA8(_) => DynamicImage::from(im.into_rgb8()),
+                    _ => im,
+                };
+                let enc = Encoder::from_image(&im).unwrap();
+                let res = enc.encode(60.0);
+
+                buffer = res.to_vec();
+            }
 
             // Write the file to the ZIP archive
             zip_writer.write_all(&buffer).map_err(|err| {
